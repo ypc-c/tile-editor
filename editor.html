@@ -1,0 +1,747 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>瓦片编辑器 · Tile Editor</title>
+<style>
+  :root{
+    --bg:#1e2129; --panel:#272b35; --panel2:#2f3440; --line:#3a4150;
+    --txt:#e6e9ef; --muted:#9aa3b2; --accent:#5b8cff; --accent2:#36c46b;
+    --danger:#ff5a5a; --warn:#ffc83d;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;font-family:"Segoe UI",system-ui,"Microsoft YaHei",sans-serif;
+    background:var(--bg);color:var(--txt);font-size:13px}
+  header{padding:10px 16px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+  header h1{font-size:16px;margin:0}
+  header .rule{color:var(--warn);font-size:12px;background:#3a2f12;padding:3px 9px;border-radius:6px;border:1px solid #5a4a16}
+  .toolbar{padding:8px 16px;border-bottom:1px solid var(--line);display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+  .toolbar .grp{display:flex;gap:6px;align-items:center;padding-right:10px;border-right:1px solid var(--line)}
+  .toolbar .grp:last-child{border-right:none}
+  button{background:var(--panel2);color:var(--txt);border:1px solid var(--line);border-radius:6px;
+    padding:6px 11px;cursor:pointer;font-size:12px}
+  button:hover{border-color:var(--accent)}
+  button.active{background:var(--accent);border-color:var(--accent);color:#fff}
+  button.t-erase.active{background:var(--danger);border-color:var(--danger)}
+  button.t-pick.active{background:var(--accent2);border-color:var(--accent2)}
+  select,input[type=text]{background:var(--panel2);color:var(--txt);border:1px solid var(--line);
+    border-radius:6px;padding:5px 8px;font-size:12px}
+  label.chk{display:inline-flex;align-items:center;gap:5px;cursor:pointer;user-select:none;font-size:12px;color:var(--muted)}
+  main{display:flex;height:calc(100% - 103px);min-height:0}
+  .palette{width:300px;background:var(--panel);border-right:1px solid var(--line);display:flex;flex-direction:column;min-height:0}
+  .palette .filters{padding:10px;border-bottom:1px solid var(--line);display:flex;flex-direction:column;gap:8px}
+  .palette .filters .row{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+  .palette .filters input[type=text]{flex:1;min-width:80px}
+  .palette .filters .flabel{font-size:11px;color:var(--muted);flex:none;width:26px;letter-spacing:1px}
+  .palette .filters .segbtn{padding:4px 8px;font-size:11px;border-radius:5px}
+  .palette .filters .segbtn.active{background:var(--accent);border-color:var(--accent);color:#fff}
+  .tilelist{flex:1;overflow:auto;padding:8px;display:grid;grid-template-columns:repeat(auto-fill,64px);gap:8px;align-content:start}
+  .tile{position:relative;width:64px;height:64px;background:#11141a;border:2px solid transparent;border-radius:8px;
+    cursor:pointer;overflow:hidden;display:flex;align-items:center;justify-content:center}
+  .tile img{width:48px;height:48px;image-rendering:pixelated}
+  .tile:hover{border-color:var(--muted)}
+  .tile.sel{border-color:var(--accent);box-shadow:0 0 0 2px rgba(91,140,255,.35)}
+  .tile .lvl{position:absolute;left:2px;top:2px;font-size:10px;background:rgba(0,0,0,.6);padding:1px 4px;border-radius:4px}
+  .tile .sd{position:absolute;right:3px;bottom:3px;width:9px;height:9px;border-radius:50%;border:1px solid #000}
+  .sd.solid{background:var(--danger)}
+  .sd.pass{background:transparent;border-color:var(--muted)}
+  .tile .nm{position:absolute;left:0;right:0;bottom:0;font-size:9px;text-align:center;background:rgba(0,0,0,.55);
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:1px 2px}
+  .selinfo{padding:10px;border-top:1px solid var(--line);min-height:96px}
+  .selinfo .big{display:flex;gap:10px;align-items:center}
+  .selinfo img{width:56px;height:56px;background:#11141a;border-radius:8px;image-rendering:pixelated}
+  .selinfo .meta{font-size:12px;color:var(--muted);line-height:1.5}
+  .selinfo .meta b{color:var(--txt)}
+  .canvaswrap{flex:1;overflow:auto;padding:16px;background:
+    repeating-conic-gradient(#23262f 0% 25%,#1b1e25 0% 50%) 0 0/24px 24px;display:flex;align-items:flex-start;justify-content:center;justify-content:safe center}
+  canvas{image-rendering:pixelated;background:#11141a;box-shadow:0 0 0 1px var(--line)}
+  .inspector{width:280px;background:var(--panel);border-left:1px solid var(--line);overflow:auto;padding:12px;display:flex;flex-direction:column;gap:12px}
+  .card{background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:10px}
+  .card h3{margin:0 0 8px;font-size:12px;color:var(--accent);text-transform:uppercase;letter-spacing:.5px}
+  .kv{display:flex;justify-content:space-between;font-size:12px;padding:2px 0;color:var(--muted)}
+  .kv b{color:var(--txt)}
+  .stack{display:flex;flex-direction:column;gap:4px;max-height:180px;overflow:auto}
+  .stack .it{display:flex;align-items:center;gap:6px;font-size:11px;background:#1c2029;border:1px solid var(--line);border-radius:5px;padding:3px 6px}
+  .stack .it img{width:22px;height:22px;image-rendering:pixelated}
+  .stack .it .lv{font-size:10px;color:#fff;padding:1px 5px;border-radius:4px}
+  .stack .it .so{margin-left:auto;font-size:10px}
+  .legend{display:flex;gap:6px;flex-wrap:wrap;font-size:11px;color:var(--muted)}
+  .legend .sw{display:inline-flex;align-items:center;gap:4px}
+  .legend .box{width:12px;height:12px;border-radius:3px;display:inline-block}
+  .hint{font-size:11px;color:var(--muted);line-height:1.6}
+  .tooltip{position:fixed;pointer-events:none;background:#000d1a;border:1px solid var(--accent);
+    border-radius:6px;padding:6px 9px;font-size:11px;z-index:50;max-width:240px;display:none;line-height:1.5}
+  .stat-good{color:var(--accent2)} .stat-warn{color:var(--warn)} .stat-bad{color:var(--danger)}
+  .toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:#11141a;border:1px solid var(--accent);
+    color:var(--txt);padding:9px 16px;border-radius:8px;font-size:12px;z-index:60;opacity:0;transition:opacity .2s}
+  .toast.show{opacity:1}
+</style>
+</head>
+<body>
+<header>
+  <h1>🧩 瓦片编辑器</h1>
+  <span class="rule">覆盖级别(lvl) 与 障碍(solid) 严格取自《瓦片素材表.xlsx》· 只读</span>
+  <span class="hint" style="color:var(--muted)">地图示例位置取自 tiny-realm-map JSON，绘制顺序与障碍判定以素材表为准</span>
+</header>
+
+<div class="toolbar">
+  <div class="grp">
+    <span style="color:var(--muted);font-size:12px">工具</span>
+    <button id="t-paint" class="active" title="左键放置选中瓦片，可拖动连续刷">🖌 画笔</button>
+    <button id="t-erase" class="t-erase" title="移除格子中最上层(最高覆盖级)的瓦片">🧽 橡皮</button>
+    <button id="t-pick" class="t-pick" title="点击地图某格，取其最上层瓦片为选中">🎯 取色</button>
+  </div>
+  <div class="grp">
+    <span style="color:var(--muted);font-size:12px">缩放</span>
+    <button data-scale="1">1×</button>
+    <button data-scale="2" class="active">2×</button>
+    <button data-scale="3">3×</button>
+    <button data-scale="4">4×</button>
+  </div>
+  <div class="grp">
+    <label class="chk"><input type="checkbox" id="o-grid" checked> 网格</label>
+    <label class="chk"><input type="checkbox" id="o-lvl"> 覆盖级别</label>
+    <label class="chk"><input type="checkbox" id="o-solid"> 障碍</label>
+    <label class="chk"><input type="checkbox" id="o-diff"> 与JSON差异</label>
+  </div>
+  <div class="grp">
+    <span style="color:var(--muted);font-size:12px">画布尺寸</span>
+    <label class="chk">宽 <input type="number" id="in-w" value="30" min="1" max="300" step="1" style="width:52px;padding:4px 6px"></label>
+    <label class="chk">高 <input type="number" id="in-h" value="17" min="1" max="300" step="1" style="width:52px;padding:4px 6px"></label>
+    <button id="b-resize" title="修改当前地图尺寸：保留左上角已有内容，新增区域铺镇草地">调整尺寸</button>
+    <button id="b-new" title="丢弃当前内容，用镇草地铺满该尺寸新建一张">新建地图</button>
+  </div>
+  <div class="grp">
+    <button id="b-example">加载示例地图</button>
+    <button id="b-undo">↶ 撤销</button>
+    <button id="b-clear">清空</button>
+    <button id="b-export">导出 JSON</button>
+    <button id="b-import">导入 JSON</button>
+    <input type="file" id="file-in" accept=".json" style="display:none">
+  </div>
+</div>
+
+<main>
+  <aside class="palette">
+    <div class="filters">
+      <div class="row">
+        <input type="text" id="f-search" placeholder="搜索备注/编号，如 耕地 / farm-0">
+      </div>
+      <div class="row">
+      <div class="row seg" data-grp="pack">
+        <span class="flabel">来源</span>
+        <button class="segbtn active" data-v="">全部</button>
+        <button class="segbtn" data-v="farm">farm</button>
+        <button class="segbtn" data-v="town">town</button>
+        <button class="segbtn" data-v="dungeon">dungeon</button>
+        <button class="segbtn" data-v="ski">ski</button>
+        <button class="segbtn" data-v="battle">battle</button>
+      </div>
+      <div class="row seg" data-grp="lvl">
+        <span class="flabel">级别</span>
+        <button class="segbtn active" data-v="">全部</button>
+        <button class="segbtn" data-v="0">0</button>
+        <button class="segbtn" data-v="1">1</button>
+        <button class="segbtn" data-v="2">2</button>
+        <button class="segbtn" data-v="3">3</button>
+        <button class="segbtn" data-v="4">4</button>
+      </div>
+      <div class="row seg" data-grp="solid">
+        <span class="flabel">障碍</span>
+        <button class="segbtn active" data-v="">全部</button>
+        <button class="segbtn" data-v="pass">可穿过</button>
+        <button class="segbtn" data-v="solid">不可穿过</button>
+      </div>
+      </div>
+    </div>
+    <div class="tilelist" id="tilelist"></div>
+    <div class="selinfo" id="selinfo"></div>
+  </aside>
+
+  <section class="canvaswrap" id="canvaswrap">
+    <canvas id="cv"></canvas>
+  </section>
+
+  <aside class="inspector">
+    <div class="card">
+      <h3>选中瓦片</h3>
+      <div id="insp-sel" class="hint">未选择</div>
+    </div>
+    <div class="card">
+      <h3>当前格子</h3>
+      <div id="insp-cell" class="hint">将鼠标移到画布上查看</div>
+      <div id="insp-stack" class="stack"></div>
+    </div>
+    <div class="card">
+      <h3>地图统计</h3>
+      <div class="kv"><span>尺寸</span><b id="st-size">-</b></div>
+      <div class="kv"><span>已放置瓦片总数</span><b id="st-total">-</b></div>
+      <div class="kv"><span>使用到的不同瓦片</span><b id="st-distinct">-</b></div>
+      <div class="kv"><span>障碍格(素材表判定)</span><b id="st-solid" class="stat-bad">-</b></div>
+      <div class="kv"><span>JSON 原 blocked</span><b id="st-json">-</b></div>
+      <div class="kv"><span>两者差异格数</span><b id="st-diff" class="stat-warn">-</b></div>
+    </div>
+    <div class="card">
+      <h3>地图存档</h3>
+      <div style="display:flex;gap:6px">
+        <input type="text" id="sv-name" placeholder="存档名称，如 农场_v1" style="flex:1;min-width:0">
+        <button id="b-save-slot">保存存档</button>
+      </div>
+      <div id="sv-list" class="stack" style="margin-top:8px"></div>
+      <div class="hint" style="margin-top:6px">命名保存当前画布成果；存于本机浏览器，下次打开网页可"载入"继续创作。"删除"可移除存档。</div>
+    </div>
+    <div class="card">
+      <h3>覆盖级别图例</h3>
+      <div class="legend">
+        <span class="sw"><span class="box" style="background:#9aa0a6"></span>0 装备/背包/UI（不入图）</span>
+        <span class="sw"><span class="box" style="background:#4f9dff"></span>1 背景地面</span>
+        <span class="sw"><span class="box" style="background:#36c46b"></span>2 作物/草/旗帜/箭头</span>
+        <span class="sw"><span class="box" style="background:#ff9f1c"></span>3 实体单位</span>
+        <span class="sw"><span class="box" style="background:#ff5a5a"></span>4 房顶/树顶</span>
+      </div>
+      <div class="hint" style="margin-top:6px">
+        定义与《瓦片素材表.xlsx · 填写说明》一致：1＝草地/雪地/水面等背景层；3＝玩家、动物、建筑、树、载具；4＝房顶/树顶，可穿过但优先显示。
+      </div>
+      <div class="hint" style="margin-top:8px">
+        渲染顺序：每格内所有瓦片按 <b>lvl 升序</b> 稳定排序后由下往上绘制，故级别高的瓦片（树顶/屋顶）会自然遮挡级别低的（地面），不会出现"走到房顶上"的问题。
+      </div>
+    </div>
+    <div class="card">
+      <h3>操作说明</h3>
+      <div class="hint">
+        • 左侧选瓦片 → 画布左键单击/拖动放置<br>
+        • 右键单击 = 橡皮（移除最上层）<br>
+        • 取色工具：点地图格取其最上层瓦片<br>
+        • 覆盖级别/障碍 开关：可视化素材表属性（障碍蒙层沿用 Tiny-realm 游戏内样式：深墨绿蒙层 + 细白描边）<br>
+        • 与JSON差异：高亮"素材表障碍判定 ≠ JSON原blocked"的格子<br>
+        • <b>调整尺寸</b>：按上方"宽/高"修改<b>当前地图</b>尺寸（保留左上角内容，新增区铺草地）；<b>新建地图</b>：丢弃当前内容、镇草地铺满该尺寸<br>
+        • <b>地图存档</b>：命名保存当前画布，下次打开网页可载入继续创作<br>
+        • 编辑自动存本地，刷新不丢；"撤销"或 Ctrl/⌘+Z 回退
+      </div>
+    </div>
+  </aside>
+</main>
+
+<div class="tooltip" id="tip"></div>
+<div class="toast" id="toast"></div>
+
+<script src="editor-data.js"></script>
+<script>
+(function(){
+  "use strict";
+  const TILE = window.TILE_DATA, SRC = window.MAP_SOURCE;
+  let W = SRC.width, H = SRC.height, TS = SRC.tileSize;
+  const cv = document.getElementById('cv');
+  const ctx = cv.getContext('2d');
+  const LVL_COLOR = {0:'#9aa0a6',1:'#4f9dff',2:'#36c46b',3:'#ff9f1c',4:'#ff5a5a'};
+
+  // ---------- 状态 ----------
+  let scale = 2;
+  let tool = 'paint';
+  let selected = null;
+  let showGrid = true, showLvl = false, showSolid = false, showDiff = false;
+  let hover = {x:-1,y:-1};
+  let painting = false;
+  let strokeCells = new Set();
+  let state = { map: emptyMap() };
+
+  // ---------- 撤销 ----------
+  let undoStack = [];
+  const MAX_UNDO = 100;
+  let pendingUndo = null;            // 一次笔画（按下→松开）前的内存快照
+  function snapshot(){ return state.map.map(row=>row.map(c=>c.slice())); }
+  function pushUndoSnapshot(s){ undoStack.push(s); if(undoStack.length>MAX_UNDO) undoStack.shift(); }
+  function sameMap(a,b){
+    for(let y=0;y<a.length;y++){
+      const ra=a[y], rb=b[y];
+      if(ra.length!==rb.length) return false;
+      for(let x=0;x<ra.length;x++){
+        if(ra[x].length!==rb[x].length) return false;
+        for(let k=0;k<ra[x].length;k++) if(ra[x][k]!==rb[x][k]) return false;
+      }
+    }
+    return true;
+  }
+  function undo(){
+    if(!undoStack.length){ toast('没有可撤销的操作'); return; }
+    state.map = undoStack.pop();
+    scheduleRender(); updateStats(); updateCellInfo(hover.x,hover.y); save();
+    toast('已撤销');
+  }
+
+  function emptyMap(){ const m=[]; for(let y=0;y<H;y++){const r=[];for(let x=0;x<W;x++)r.push([]);m.push(r);} return m; }
+  function deepMatrix(mat){ return mat.map(row=>row.map(cell=>cell.slice())); }
+
+  // ---------- 图片缓存 ----------
+  const IMG = {};
+  function getImg(id){
+    if(IMG[id]) return IMG[id];
+    const t = TILE[id];
+    const im = new Image();
+    im.onload = scheduleRender;
+    im.onerror = ()=>{ im.broken = true; scheduleRender(); };
+    im.src = t ? t.img : '';
+    IMG[id] = im;
+    return im;
+  }
+
+  // ---------- 排序（稳定，按 lvl 升序） ----------
+  function sortedStack(ids){
+    return ids.slice().sort((a,b)=>{
+      const la = TILE[a]?TILE[a].lvl:0, lb = TILE[b]?TILE[b].lvl:0;
+      return la - lb;
+    });
+  }
+  function cellSolid(ids){ return ids.some(id=>TILE[id] && TILE[id].solid); }
+
+  // ---------- 画布尺寸 ----------
+  function resizeCanvas(){
+    cv.width = W*TS*scale; cv.height = H*TS*scale;
+    scheduleRender();
+  }
+
+  // ---------- 渲染 ----------
+  let rafPending = false;
+  function scheduleRender(){ if(rafPending) return; rafPending=true; requestAnimationFrame(render); }
+
+  function render(){
+    rafPending = false;
+    ctx.clearRect(0,0,cv.width,cv.height);
+    ctx.imageSmoothingEnabled = false;
+    for(let y=0;y<H;y++){
+      for(let x=0;x<W;x++){
+        const ids = state.map[y][x];
+        const stack = sortedStack(ids);
+        const dx = x*TS*scale, dy = y*TS*scale, s = TS*scale;
+        for(const id of stack){
+          const im = getImg(id);
+          if(im.broken || !im.src){ ctx.fillStyle='#2a2030'; ctx.fillRect(dx,dy,s,s); }
+          else if(im.complete && im.naturalWidth){ ctx.drawImage(im,dx,dy,s,s); }
+          else { ctx.fillStyle='#11141a'; ctx.fillRect(dx,dy,s,s); }
+          if(showLvl && TILE[id]){
+            ctx.strokeStyle = LVL_COLOR[TILE[id].lvl]||'#fff';
+            ctx.lineWidth = Math.max(1,scale*0.4);
+            ctx.strokeRect(dx+0.5,dy+0.5,s-1,s-1);
+          }
+        }
+        if(showSolid && cellSolid(ids)){
+          // 与 Tiny-realm/tiny-realm.html 的 showBlocked 一致：
+          // 深墨绿半透明蒙层 rgba(26,38,30,.32) + 细白描边 rgba(255,255,255,.22)
+          ctx.fillStyle='rgba(26,38,30,.32)';
+          ctx.fillRect(dx,dy,s,s);
+          const lw = Math.max(1, scale*0.5);
+          ctx.strokeStyle='rgba(255,255,255,.22)';
+          ctx.lineWidth = lw;
+          ctx.strokeRect(dx+lw/2, dy+lw/2, s-lw, s-lw);
+        }
+        if(showDiff && diffCell(y,x)){
+          ctx.strokeStyle='#ffc83d'; ctx.lineWidth=Math.max(2,scale*0.7);
+          ctx.strokeRect(dx+1,dy+1,s-2,s-2);
+        }
+        if(showGrid){
+          ctx.strokeStyle='rgba(255,255,255,.08)'; ctx.lineWidth=1;
+          ctx.strokeRect(dx+0.5,dy+0.5,s-1,s-1);
+        }
+      }
+    }
+    // 悬停高亮
+    if(hover.x>=0 && hover.y>=0){
+      const dx=hover.x*TS*scale, dy=hover.y*TS*scale, s=TS*scale;
+      ctx.strokeStyle='#5b8cff'; ctx.lineWidth=2;
+      ctx.strokeRect(dx+1,dy+1,s-2,s-2);
+      ctx.fillStyle='rgba(91,140,255,.12)'; ctx.fillRect(dx,dy,s,s);
+    }
+  }
+
+  // 素材表障碍判定 与 JSON 原 blocked 的差异
+  function diffCell(y,x){
+    if(H!==SRC.height || W!==SRC.width) return false;   // 仅示例尺寸可做对比
+    const sp = cellSolid(state.map[y][x]);
+    const jb = SRC.blocked && SRC.blocked[y] && SRC.blocked[y][x];
+    return sp !== !!jb;
+  }
+
+  // ---------- 放置 / 擦除 ----------
+  function placeAt(x,y){
+    if(x<0||y<0||x>=W||y>=H) return;
+    const key=x+','+y;
+    if(strokeCells.has(key)) return;
+    strokeCells.add(key);
+    const cell = state.map[y][x];
+    if(tool==='erase'){ eraseTop(cell); }
+    else if(tool==='pick'){
+      const st = sortedStack(cell);
+      if(st.length){ setSelected(st[st.length-1]); setTool('paint'); }
+    } else {
+      if(selected) cell.push(selected);
+    }
+    scheduleRender(); updateStats(); updateCellInfo(x,y); save();
+  }
+  function eraseTop(cell){
+    const st = sortedStack(cell);
+    if(!st.length) return;
+    const top = st[st.length-1];
+    const i = cell.indexOf(top);
+    if(i>=0) cell.splice(i,1);
+  }
+
+  // ---------- 鼠标 ----------
+  function cellFromEvent(e){
+    const r = cv.getBoundingClientRect();
+    const cx = (e.clientX - r.left), cy = (e.clientY - r.top);
+    const x = Math.floor(cx/(TS*scale)), y = Math.floor(cy/(TS*scale));
+    return {x,y};
+  }
+  cv.addEventListener('contextmenu', e=>e.preventDefault());
+  cv.addEventListener('mousedown', e=>{
+    const {x,y} = cellFromEvent(e);
+    painting = true; strokeCells.clear();
+    pendingUndo = snapshot();           // 记录本笔画前的状态
+    if(e.button===2){ const tmp=tool; tool='erase'; placeAt(x,y); tool=tmp; }
+    else placeAt(x,y);
+  });
+  window.addEventListener('mouseup', ()=>{
+    if(pendingUndo){                     // 本笔画确有改动才入栈
+      if(!sameMap(pendingUndo, state.map)) pushUndoSnapshot(pendingUndo);
+      pendingUndo=null;
+    }
+    painting=false; strokeCells.clear();
+  });
+  cv.addEventListener('mousemove', e=>{
+    const {x,y} = cellFromEvent(e);
+    if(x!==hover.x||y!==hover.y){ hover.x=x; hover.y=y; scheduleRender(); updateCellInfo(x,y); }
+    if(painting && x>=0&&y>=0&&x<W&&y<H) placeAt(x,y);
+    showTooltip(e,x,y);
+  });
+  cv.addEventListener('mouseleave', ()=>{ hover.x=-1; hover.y=-1; scheduleRender(); hideTooltip(); });
+
+  // ---------- 工具提示 ----------
+  const tip = document.getElementById('tip');
+  function showTooltip(e,x,y){
+    if(x<0||y<0||x>=W||y>=H){ hideTooltip(); return; }
+    const ids = state.map[y][x];
+    const st = sortedStack(ids);
+    let html = `<b>(${x}, ${y})</b> · 瓦片数 ${ids.length}<br>`;
+    if(st.length){
+      html += st.slice().reverse().slice(0,6).map(id=>{
+        const t=TILE[id];
+        return `${t?t.pack+'-'+t.idx:'?'}${t?' · L'+t.lvl+(t.solid?' · 障碍':''):''}`;
+      }).join('<br>');
+      if(st.length>6) html+='<br>…';
+    } else html += '（空）';
+    tip.innerHTML = html;
+    tip.style.display='block';
+    tip.style.left=(e.clientX+14)+'px';
+    tip.style.top=(e.clientY+14)+'px';
+  }
+  function hideTooltip(){ tip.style.display='none'; }
+
+  // ---------- 调色板 ----------
+  const tilelist = document.getElementById('tilelist');
+  // 三组快速筛选的当前值（点击平铺标签直接切换，替代原下拉框）
+  const filters = {pack:'', lvl:'', solid:''};
+  function initSegFilters(){
+    document.querySelectorAll('.filters .seg').forEach(seg=>{
+      const grp = seg.dataset.grp;
+      seg.querySelectorAll('.segbtn').forEach(btn=>{
+        btn.addEventListener('click', ()=>{
+          filters[grp] = btn.dataset.v;
+          seg.querySelectorAll('.segbtn').forEach(b=>b.classList.toggle('active', b===btn));
+          buildPalette();
+        });
+      });
+    });
+  }
+  function buildPalette(){
+    const q=(document.getElementById('f-search').value||'').trim().toLowerCase();
+    // 筛选状态由三组平铺标签按钮维护（filters），点击即切换
+    const fp=filters.pack, fl=filters.lvl, fs=filters.solid;
+    const ids = Object.keys(TILE).filter(id=>{
+      const t=TILE[id];
+      if(fp && t.pack!==fp) return false;
+      if(fl && String(t.lvl)!==fl) return false;
+      if(fs==='solid' && !t.solid) return false;
+      if(fs==='pass' && t.solid) return false;
+      if(q){
+        const hay=(t.note+' '+t.pack+'-'+t.idx+' '+id).toLowerCase();
+        if(hay.indexOf(q)<0) return false;
+      }
+      return true;
+    });
+    tilelist.innerHTML='';
+    for(const id of ids){
+      const t=TILE[id];
+      const div=document.createElement('div');
+      div.className='tile'+(id===selected?' sel':'');
+      div.dataset.id=id;
+      div.innerHTML=`<img src="${t.img}" alt="${id}"><span class="lvl" style="color:${LVL_COLOR[t.lvl]||'#fff'}">L${t.lvl}</span>`+
+        `<span class="sd ${t.solid?'solid':'pass'}" title="${t.solid?'不可穿过':'可穿过'}"></span>`+
+        `<span class="nm">${t.note||id}</span>`;
+      div.addEventListener('click',()=>{ setSelected(id); setTool('paint'); });
+      tilelist.appendChild(div);
+    }
+    if(!ids.length){ tilelist.innerHTML='<div class="hint" style="padding:10px">无匹配瓦片</div>'; }
+  }
+  function setSelected(id){
+    selected=id;
+    buildPalette();
+    const t=TILE[id];
+    document.getElementById('selinfo').innerHTML =
+      `<div class="big"><img src="${t.img}"><div class="meta">`+
+      `<div><b>${t.pack}-${t.idx}</b> · ${t.note||''}</div>`+
+      `<div>覆盖级别 <b style="color:${LVL_COLOR[t.lvl]}">L${t.lvl}</b></div>`+
+      `<div>障碍属性 <b class="${t.solid?'stat-bad':'stat-good'}">${t.solid?'不可穿过':'可穿过'}</b></div>`+
+      `<div style="color:#6b7280">来自素材表（只读）</div>`+
+      `</div></div>`;
+    document.getElementById('insp-sel').innerHTML =
+      `<div class="meta">已选 <b>${t.pack}-${t.idx}</b> · ${t.note||''} · <b style="color:${LVL_COLOR[t.lvl]}">L${t.lvl}</b> · ${t.solid?'障碍':'可穿'}</div>`;
+  }
+
+  // ---------- 统计 ----------
+  function updateStats(){
+    let total=0; const used=new Set(); let solidCells=0;
+    for(let y=0;y<H;y++)for(let x=0;x<W;x++){
+      const ids=state.map[y][x]; total+=ids.length;
+      ids.forEach(id=>used.add(id));
+      if(cellSolid(ids)) solidCells++;
+    }
+    const dimsMatch = (H===SRC.height && W===SRC.width);
+    let jsonSolid=0; if(dimsMatch && SRC.blocked) for(let y=0;y<H;y++)for(let x=0;x<W;x++) if(SRC.blocked[y]&&SRC.blocked[y][x]) jsonSolid++;
+    let diff=0; for(let y=0;y<H;y++)for(let x=0;x<W;x++) if(diffCell(y,x)) diff++;
+    document.getElementById('st-size').textContent = W+' × '+H+'（'+TS+'px）';
+    document.getElementById('st-total').textContent = total;
+    document.getElementById('st-distinct').textContent = used.size;
+    document.getElementById('st-solid').textContent = solidCells;
+    document.getElementById('st-json').textContent = dimsMatch ? jsonSolid : '—';
+    document.getElementById('st-diff').textContent = dimsMatch ? diff : '—';
+  }
+
+  function updateCellInfo(x,y){
+    const box=document.getElementById('insp-cell');
+    const stackBox=document.getElementById('insp-stack');
+    if(x<0||y<0||x>=W||y>=H){ box.textContent='将鼠标移到画布上查看'; stackBox.innerHTML=''; return; }
+    const ids=state.map[y][x];
+    const st=sortedStack(ids);
+    box.innerHTML=`<b>格子 (${x}, ${y})</b> · 共 ${ids.length} 层`;
+    stackBox.innerHTML='';
+    if(!st.length){ stackBox.innerHTML='<div class="hint">空</div>'; return; }
+    // 从上到下显示
+    st.slice().reverse().forEach((id,i)=>{
+      const t=TILE[id]; if(!t) return;
+      const it=document.createElement('div'); it.className='it';
+      it.innerHTML=`<img src="${t.img}"><span>${t.pack}-${t.idx}</span>`+
+        `<span class="lv" style="background:${LVL_COLOR[t.lvl]}">L${t.lvl}</span>`+
+        `<span class="so ${t.solid?'stat-bad':'stat-good'}">${t.solid?'障碍':'可穿'}</span>`;
+      stackBox.appendChild(it);
+    });
+  }
+
+  // ---------- 加载 / 重置 / 清空 ----------
+  function loadExample(record){
+    if(record) pushUndoSnapshot(snapshot());
+    // 以当前画布尺寸(W×H)生成地图：先铺镇草地，再把示例(JSON, 30×17)置于左上角。
+    // 这样即使放大了地图尺寸，超出示例的"新增部分"也是可编辑的草地，而非未渲染的空洞。
+    const m = grassMap();
+    const ex = SRC.matrix, ew = ex[0].length, eh = ex.length;
+    for(let y=0; y<Math.min(eh,H); y++)
+      for(let x=0; x<Math.min(ew,W); x++)
+        m[y][x] = ex[y][x].slice();
+    state.map = m;
+    scheduleRender(); updateStats(); updateCellInfo(hover.x,hover.y); save();
+    toast('已加载示例地图（置于 '+W+'×'+H+' 画布左上角，其余为镇草地；lvl/障碍来自素材表）');
+  }
+  function clampInt(v, lo, hi, fallback){
+    let n = parseInt(v, 10);
+    if(!isFinite(n)) n = fallback;
+    return Math.max(lo, Math.min(hi, n));
+  }
+  function newMap(){
+    const nw = clampInt(document.getElementById('in-w').value, 1, 300, W);
+    const nh = clampInt(document.getElementById('in-h').value, 1, 300, H);
+    document.getElementById('in-w').value = nw;
+    document.getElementById('in-h').value = nh;
+    pushUndoSnapshot(snapshot());
+    W = nw; H = nh;
+    state.map = grassMap(); resizeCanvas();
+    scheduleRender(); updateStats(); updateCellInfo(hover.x,hover.y); save();
+    toast('已新建地图（镇草地铺满 '+W+'×'+H+'）');
+  }
+  // 修改当前地图尺寸：保留左上角已有内容，新增区域铺镇草地（就地 resize，非新建）
+  function resizeCurrent(){
+    const nw = clampInt(document.getElementById('in-w').value, 1, 300, W);
+    const nh = clampInt(document.getElementById('in-h').value, 1, 300, H);
+    document.getElementById('in-w').value = nw;
+    document.getElementById('in-h').value = nh;
+    if(nw===W && nh===H){ toast('尺寸未变化'); return; }
+    pushUndoSnapshot(snapshot());
+    const m = grassMap(nw, nh);
+    for(let y=0;y<Math.min(H,nh);y++)
+      for(let x=0;x<Math.min(W,nw);x++)
+        m[y][x] = state.map[y][x].slice();
+    W=nw; H=nh; state.map=m; resizeCanvas();
+    scheduleRender(); updateStats(); updateCellInfo(hover.x,hover.y); save();
+    toast('已调整尺寸为 '+W+'×'+H+'（保留左上角内容，新增区域为镇草地）');
+  }
+  function grassMap(w,h){ w=w||W; h=h||H; const m=[]; for(let y=0;y<h;y++){ const r=[]; for(let x=0;x<w;x++) r.push(['town:tile_0000']); m.push(r); } return m; }
+  function clearMap(){
+    pushUndoSnapshot(snapshot());
+    state.map = emptyMap(); scheduleRender(); updateStats(); updateCellInfo(hover.x,hover.y); save(); toast('已清空地图');
+  }
+
+  // ---------- 导出 / 导入 ----------
+  function exportJSON(){
+    const usedIds=new Set();
+    for(let y=0;y<H;y++)for(let x=0;x<W;x++) state.map[y][x].forEach(id=>usedIds.add(id));
+    const legend={};
+    usedIds.forEach(id=>{
+      const t=TILE[id]; if(!t) return;
+      legend[id]={ file:t.img, level:t.lvl, solid:t.solid };
+    });
+    const blocked=[];
+    for(let y=0;y<H;y++){ const r=[]; for(let x=0;x<W;x++) r.push(cellSolid(state.map[y][x])); blocked.push(r); }
+    const out={
+      generator:'Tile Editor export (lvl/solid from 瓦片素材表.xlsx)',
+      width:W, height:H, tileSize:TS,
+      packDirs:SRC.packDirs,
+      legend, matrix:state.map.map(row=>row.map(c=>c.slice())),
+      blocked
+    };
+    const blob=new Blob([JSON.stringify(out,null,2)],{type:'application/json'});
+    const a=document.createElement('a');
+    a.href=URL.createObjectURL(blob);
+    // 文件名优先用当前存档名，其次用输入框中的名字，最后回退默认名；清洗非法字符
+    const rawName = (currentSaveName || (document.getElementById('sv-name').value||'').trim() || 'tilemap-export');
+    const safeName = rawName.replace(/[\\/:*?"<>|]+/g,'_').slice(0,80) + '.json';
+    a.download=safeName;
+    a.click(); URL.revokeObjectURL(a.href);
+    toast('已导出 '+safeName+'（legend 使用素材表 lvl/solid）');
+  }
+  function importJSON(file){
+    const rd=new FileReader();
+    rd.onload=()=>{
+      try{
+        const obj=JSON.parse(rd.result);
+        if(!obj.matrix || !Array.isArray(obj.matrix)) throw new Error('缺少 matrix');
+        // matrix 结构为 [行][列][每格瓦片id数组]，每格本身已是数组，直接深拷贝三层结构，
+        // 不要 flat：flat 会把整行所有格子的瓦片摊平成字符串，破坏 [行][列][瓦片] 三维结构。
+        const m=obj.matrix.map(row=>row.map(c=>Array.isArray(c)?c.slice():[c]));
+        // 以导入文件的尺寸为准
+        W = m[0].length; H = m.length; resizeCanvas();
+        document.getElementById('in-w').value=W; document.getElementById('in-h').value=H;
+        pushUndoSnapshot(snapshot());
+        state.map=m; scheduleRender(); updateStats(); updateCellInfo(hover.x,hover.y); save();
+        toast('已导入地图（'+W+'×'+H+'）');
+      }catch(err){ toast('导入失败：'+err.message,true); }
+    };
+    rd.readAsText(file);
+  }
+
+  // ---------- 本地存储 ----------
+  const KEY='tileEditor.map.v1';
+  function save(){ try{ localStorage.setItem(KEY, JSON.stringify(state.map)); }catch(e){} }
+  function loadSaved(){ try{ const s=localStorage.getItem(KEY); if(s){ const m=JSON.parse(s); if(m&&Array.isArray(m)&&m.length&&Array.isArray(m[0])&&m[0].length){ W=m[0].length; H=m.length; state.map=m; resizeCanvas(); return true; } } }catch(e){} return false; }
+
+  // ---------- 地图存档（命名存档，持久化于本机浏览器，下次打开可载入继续创作） ----------
+  const SV_KEY='tileEditor.saves.v1';
+  let currentSaveName='';  // 当前活动存档名（保存/载入时记录），用于导出文件名
+  function loadSaves(){ try{ return JSON.parse(localStorage.getItem(SV_KEY))||{}; }catch(e){ return {}; } }
+  function writeSaves(o){ try{ localStorage.setItem(SV_KEY, JSON.stringify(o)); }catch(e){} }
+  function renderSaves(){
+    const saves=loadSaves(); const box=document.getElementById('sv-list'); const names=Object.keys(saves);
+    if(!names.length){ box.innerHTML='<div class="hint">暂无存档</div>'; return; }
+    box.innerHTML='';
+    names.forEach(name=>{
+      const s=saves[name];
+      const it=document.createElement('div'); it.className='it'; it.style.flexWrap='wrap'; it.style.gap='4px';
+      const lbl=document.createElement('span'); lbl.style.flex='1'; lbl.style.minWidth='0'; lbl.style.overflow='hidden'; lbl.style.textOverflow='ellipsis'; lbl.textContent=name;
+      const so=document.createElement('span'); so.className='so'; so.textContent=s.w+'×'+s.h;
+      const lb=document.createElement('button'); lb.textContent='载入'; lb.style.padding='2px 8px'; lb.style.fontSize='11px'; lb.onclick=()=>loadSlot(name);
+      const db=document.createElement('button'); db.textContent='删除'; db.style.padding='2px 8px'; db.style.fontSize='11px'; db.style.borderColor='var(--danger)'; db.onclick=()=>deleteSlot(name);
+      it.appendChild(lbl); it.appendChild(so); it.appendChild(lb); it.appendChild(db);
+      box.appendChild(it);
+    });
+  }
+  function saveSlot(){
+    const name=(document.getElementById('sv-name').value||'').trim();
+    if(!name){ toast('请先输入存档名称',true); return; }
+    const saves=loadSaves();
+    if(saves[name] && !confirm('已存在存档「'+name+'」，是否覆盖？')) return;
+    saves[name]={ w:W, h:H, ts:TS, map: state.map.map(row=>row.map(c=>c.slice())) };
+    writeSaves(saves); renderSaves();
+    currentSaveName=name;
+    toast('已保存存档「'+name+'」（'+W+'×'+H+'）');
+  }
+  function loadSlot(name){
+    const saves=loadSaves(); const s=saves[name]; if(!s) return;
+    pushUndoSnapshot(snapshot());
+    W=s.w; H=s.h; resizeCanvas();
+    document.getElementById('in-w').value=W; document.getElementById('in-h').value=H;
+    state.map = s.map.map(row=>row.map(c=>c.slice()));
+    scheduleRender(); updateStats(); updateCellInfo(hover.x,hover.y); save();
+    currentSaveName=name;
+    toast('已载入存档「'+name+'」');
+  }
+  function deleteSlot(name){
+    const saves=loadSaves(); if(!saves[name]) return;
+    if(!confirm('删除存档「'+name+'」？')) return;
+    delete saves[name]; writeSaves(saves); renderSaves();
+    if(name===currentSaveName) currentSaveName='';
+    toast('已删除存档「'+name+'」');
+  }
+
+  // ---------- Toast ----------
+  let toastT=null;
+  function toast(msg,bad){
+    const el=document.getElementById('toast');
+    el.textContent=msg; el.style.borderColor=bad?'#ff5a5a':'#5b8cff';
+    el.classList.add('show'); clearTimeout(toastT);
+    toastT=setTimeout(()=>el.classList.remove('show'),2200);
+  }
+
+  // ---------- 事件绑定 ----------
+  document.getElementById('t-paint').onclick=()=>setTool('paint');
+  document.getElementById('t-erase').onclick=()=>setTool('erase');
+  document.getElementById('t-pick').onclick=()=>setTool('pick');
+  function setTool(t){
+    tool=t;
+    document.getElementById('t-paint').classList.toggle('active',t==='paint');
+    document.getElementById('t-erase').classList.toggle('active',t==='erase');
+    document.getElementById('t-pick').classList.toggle('active',t==='pick');
+  }
+  document.querySelectorAll('[data-scale]').forEach(b=>{
+    b.onclick=()=>{
+      scale=+b.dataset.scale;
+      document.querySelectorAll('[data-scale]').forEach(x=>x.classList.remove('active'));
+      b.classList.add('active'); resizeCanvas();
+    };
+  });
+  document.getElementById('o-grid').onchange=e=>{ showGrid=e.target.checked; scheduleRender(); };
+  document.getElementById('o-lvl').onchange=e=>{ showLvl=e.target.checked; scheduleRender(); };
+  document.getElementById('o-solid').onchange=e=>{ showSolid=e.target.checked; scheduleRender(); };
+  document.getElementById('o-diff').onchange=e=>{ showDiff=e.target.checked; scheduleRender(); };
+  document.getElementById('f-search').oninput=buildPalette;
+  initSegFilters(); // 来源/级别/障碍 三组平铺快速筛选
+  document.getElementById('b-example').onclick=()=>loadExample(true);
+  document.getElementById('b-new').onclick=newMap;
+  document.getElementById('b-resize').onclick=resizeCurrent;
+  document.getElementById('b-save-slot').onclick=saveSlot;
+  document.getElementById('b-undo').onclick=undo;
+  document.getElementById('b-clear').onclick=clearMap;
+  window.addEventListener('keydown', e=>{ if((e.ctrlKey||e.metaKey) && (e.key==='z'||e.key==='Z')){ e.preventDefault(); undo(); } });
+  document.getElementById('b-export').onclick=exportJSON;
+  document.getElementById('b-import').onclick=()=>document.getElementById('file-in').click();
+  document.getElementById('file-in').onchange=e=>{ if(e.target.files[0]) importJSON(e.target.files[0]); e.target.value=''; };
+
+  // ---------- 初始化 ----------
+  buildPalette();
+  resizeCanvas();
+  if(!loadSaved()){ loadExample(false); }
+  else { updateStats(); updateCellInfo(-1,-1); }
+  document.getElementById('in-w').value=W; document.getElementById('in-h').value=H;
+  renderSaves();
+  setSelected('farm:tile_0000');
+})();
+</script>
+</body>
+</html>
